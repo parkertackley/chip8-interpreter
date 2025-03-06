@@ -1,5 +1,6 @@
 #files
 chip8
 chip8.cpp
+*.ch8
 
 #directories
