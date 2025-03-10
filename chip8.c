@@ -26,6 +26,7 @@ typedef struct {
 	uint32_t fg_color;		// foreground color RGBA8888
 	uint32_t bg_color;		// background color RGBA8888
 	uint32_t scale_factor;	// amount to scale a CHIP8 pixel by
+	bool pixel_outlines;	// Draw pixel outlines yes/no
 } config_t;
 	
 typedef enum {
@@ -42,7 +43,7 @@ typedef struct {
 	uint16_t stack[12];		// Subroutine stack
 	uint16_t *stack_pointer;
 	uint8_t V[16];			// Data Registers V0-VF
-	uint8_t I;				// Index Register
+	uint16_t I;				// Index Register
 	uint16_t PC;			// Program counter
 	uint8_t delay_timer;	// Decrements at 60hz when > 0
 	uint8_t sound_timer;	// Decrements at 60hz and plays tone when > 0
@@ -87,6 +88,7 @@ bool set_config_from_args(config_t *config, const int argc, char **argv) {
 		.fg_color = 0xFFFFFFFF,	// white
 		.bg_color = 0x000000FF,	// yellow
 		.scale_factor = 20,		// default res  will be 1280x640
+		.pixel_outlines = true,	// draw pixel outlines by default
 	};
 
 	// Override defaults
@@ -177,15 +179,15 @@ void clear_screen(const sdl_t sdl, const config_t config) {
 void update_screen(const sdl_t sdl, const config_t config, const chip8_t chip8) {
 	SDL_Rect rect = {.x = 0, .y = 0, .w = config.scale_factor, .h = config.scale_factor};
 	// Grab color values to draw
-	const uint8_t bg_r = (config.bg_color >> 24) & 0xFF;
-	const uint8_t bg_g = (config.bg_color >> 16) & 0xFF;
-	const uint8_t bg_b = (config.bg_color >> 8) & 0xFF;
-	const uint8_t bg_a = (config.bg_color >> 0) & 0xFF;
-
 	const uint8_t fg_r = (config.fg_color >> 24) & 0xFF;
 	const uint8_t fg_g = (config.fg_color >> 16) & 0xFF;
 	const uint8_t fg_b = (config.fg_color >> 8) & 0xFF;
 	const uint8_t fg_a = (config.fg_color >> 0) & 0xFF;
+
+	const uint8_t bg_r = (config.bg_color >> 24) & 0xFF;
+	const uint8_t bg_g = (config.bg_color >> 16) & 0xFF;
+	const uint8_t bg_b = (config.bg_color >> 8) & 0xFF;
+	const uint8_t bg_a = (config.bg_color >> 0) & 0xFF;
 
 	// Loop through display, draw a rectangle per pixel to the SDL window
 	for(uint32_t i = 0; i < sizeof chip8.display; i++) {
@@ -197,6 +199,13 @@ void update_screen(const sdl_t sdl, const config_t config, const chip8_t chip8) 
 			// Pixel is on, draw forground color
 			SDL_SetRenderDrawColor(sdl.renderer, fg_r, fg_g, fg_b, fg_a);
 			SDL_RenderFillRect(sdl.renderer, &rect);
+
+			// If user requests drawing pixel outlines
+			if(config.pixel_outlines) {
+				SDL_SetRenderDrawColor(sdl.renderer, bg_r, bg_g, bg_b, bg_a);
+				SDL_RenderDrawRect(sdl.renderer, &rect);
+			}
+
 		} else {
 			// Pixel is off, draw background color
 			SDL_SetRenderDrawColor(sdl.renderer, bg_r, bg_g, bg_b, bg_a);
@@ -205,7 +214,7 @@ void update_screen(const sdl_t sdl, const config_t config, const chip8_t chip8) 
 	}
 
 	SDL_RenderPresent(sdl.renderer);
-	// SDL_RenderClear(sdl.renderer);
+
 }
 
 void handle_input(chip8_t *chip8) {
@@ -256,41 +265,49 @@ void print_debug_info(chip8_t *chip8) {
 			if(chip8->inst.NNN == 0xE0) {
 				// 0x00E0: Clear the screen
 				printf("Clear screen\n");
-				memset(&chip8->display[0], false, sizeof(chip8->display));
 			} else if(chip8->inst.NNN == 0xEE) {
 				// 0x00EE: Return from subroutine
-				printf("Return from subroutine to address0x%04X\n", *(chip8->stack_pointer - 1));
-				chip8->PC = *--chip8->stack_pointer;
+				printf("Return from subroutine to address0x%04X\n", 
+						*(chip8->stack_pointer - 1));
 			} else {
 				printf("Uninplemented Opcode.\n");
 			}
 			break;
-
+		case 0x01:
+			// 0x1NNN: Jump to address NNN
+			printf("Jump to address NNN (0x%04X)\n",
+					chip8->inst.NNN);
+			break;
 		case 0x02:
 			// 0x02NNN: Call subroutine at NNN
-			*chip8->stack_pointer++ = chip8->PC;
-			chip8->PC = chip8->inst.NNN;
+			printf("Stack pointer moved to (0x%04X)\n",
+					chip8->PC);
 			break;
 
 		case 0x06:
 			// 0x6XNN: Set register VX to NN
-			printf("Set register V%X to NN (0x%02X)\n", chip8->inst.X, chip8->inst.NN);
+			printf("Set register V%X to NN (0x%02X)\n",
+					chip8->inst.X, chip8->inst.NN);
 			break;
 
 		case 0x07:
-			// 0x6XNN: Set register VX += NN
+			// 0x7XNN: Set register VX += NN
 			printf("Set register V%X (0x%02X) += NN (0x%02X). Result: 0x%02X\n", 
-				chip8->inst.X, chip8->V[chip8->inst.X], chip8->inst.NN, chip8->V[chip8->inst.X] + chip8->inst.NN);
+				chip8->inst.X, chip8->V[chip8->inst.X], 
+				chip8->inst.NN, 
+				chip8->V[chip8->inst.X] + chip8->inst.NN);
 			break;
 
 		case 0x0A:
 			// 0xANNN: Set index register I to NNN
-			printf("Set I to NNN (0x%04X)\n", chip8->inst.NNN);
+			printf("Set I to NNN (0x%04X)\n", 
+					chip8->inst.NNN);
 			break;
 
 		case 0x0D:
 			printf("Draw N (%u) height sprite at coords V%X (0x%02X), V%X (0x%02X) from memory location I (0x%04X). Set VF = 1 if any pixels are turned off.\n",
-				chip8->inst.N, chip8->inst.X, chip8->V[chip8->inst.X], chip8->inst.Y,
+				chip8->inst.N, chip8->inst.X, 
+				chip8->V[chip8->inst.X], chip8->inst.Y,
 				chip8->V[chip8->inst.Y], chip8->I);
 			break;
 
@@ -324,16 +341,24 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 			if(chip8->inst.NNN == 0xE0) {
 				// 0x00E0: Clear the screen
 				memset(&chip8->display[0], false, sizeof(chip8->display));
-			} else if(chip8->inst.NNN == 0xEE) {
+			} else if(chip8->inst.NN == 0xEE) {
 				// 0x00EE: Return from subroutine
 				chip8->PC = *--chip8->stack_pointer;
+			} else {
+				// Uninplemented Opcode
 			}
+			break;
+
+		case 0x01:
+			// 0x1NNN: Jump to address NNN
+			chip8->PC = chip8->inst.NNN;
 			break;
 
 		case 0x02:
 			// 0x02NNN: Call subroutine at NNN
 			*chip8->stack_pointer++ = chip8->PC;
 			chip8->PC = chip8->inst.NNN;
+			break;
 
 		case 0x06:
 			// 0x6XNN: Set register VX to NN
@@ -341,7 +366,7 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 			break;
 		
 		case 0x07:
-			// 0x6XNN: Set register VX += NN
+			// 0x7XNN: Set register VX += NN
 			chip8->V[chip8->inst.X] += chip8->inst.NN;
 			break;
 
@@ -382,8 +407,9 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 				}
 				// Stop drawing entire sprite if hit bottom edge of screen
 				if(++Y_coord >= config.window_height) break;
-			}}
+			}
 			break;
+			}	
 
 		default:
 			break;	// Unimplmented or invalid opcode
@@ -415,7 +441,6 @@ int main(int argc, char **argv) {
 
 	// Main emulator loop
 	while(chip8.state != QUIT){
-		clear_screen(sdl, config);
 		//handle user input
 		handle_input(&chip8);
 		if(chip8.state == PAUSED) continue;
