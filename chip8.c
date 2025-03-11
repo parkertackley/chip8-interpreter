@@ -317,6 +317,86 @@ void print_debug_info(chip8_t *chip8) {
 				chip8->V[chip8->inst.X] + chip8->inst.NN);
 			break;
 
+		case 0x08:
+			switch(chip8->inst.N) {
+				case 0:
+					// 0x8XY0: Set register VX = VY
+					printf("Set register V%X = V%X (0x%02x)\n",
+							chip8->inst.X, chip8->inst.Y, chip8->V[chip8->inst.Y]);
+					break;
+
+				case 1:
+					// 0x8XY1: Set register VX |= VY
+					printf("Set register V%X (0x%02X) |= V%X (0x%02x). Result: 0x%02X\n",
+							chip8->inst.X, chip8->V[chip8->inst.X],
+							chip8->inst.Y, chip8->V[chip8->inst.Y],
+							chip8->V[chip8->inst.X] | chip8->V[chip8->inst.X]);
+					break;
+
+				case 2:
+					// 0x8XY2: Set register VX &= VY
+					printf("Set register V%X (0x%02X) &= V%X (0x%02x). Result: 0x%02X\n",
+							chip8->inst.X, chip8->V[chip8->inst.X],
+							chip8->inst.Y, chip8->V[chip8->inst.Y],
+							chip8->V[chip8->inst.X] & chip8->V[chip8->inst.X]);
+					break;
+
+				case 3:
+					// 0x8XY3: Set register VX ^= VY
+					printf("Set register V%X (0x%02X) ^= V%X (0x%02x). Result: 0x%02X\n",
+							chip8->inst.X, chip8->V[chip8->inst.X],
+							chip8->inst.Y, chip8->V[chip8->inst.Y],
+							chip8->V[chip8->inst.X] ^ chip8->V[chip8->inst.X]);
+					break;
+				
+				case 4:
+					// 0x8XY4: Set register VX += VY set VF to 1 if carry, otherwise 0
+					printf("Set register V%X (0x%02X) += V%X (0x%02x), VF = 1 if carry; Result: 0x%02X, VF = %X\n",
+							chip8->inst.X, chip8->V[chip8->inst.X],
+							chip8->inst.Y, chip8->V[chip8->inst.Y],
+							chip8->V[chip8->inst.X] + chip8->V[chip8->inst.X],
+							((uint16_t)(chip8->V[chip8->inst.X] + chip8->V[chip8->inst.X]) > 255));
+					break;
+				
+				case 5:
+					// 0x8XY5: Set register VX -= VY set VF to 1 if VX >= VY (undercarry)
+					printf("Set register V%X (0x%02X) -= V%X (0x%02x), VF = 1 if carry; Result: 0x%02X, VF = %X\n",
+							chip8->inst.X, chip8->V[chip8->inst.X],
+							chip8->inst.Y, chip8->V[chip8->inst.Y],
+							chip8->V[chip8->inst.X] - chip8->V[chip8->inst.X],
+							(chip8->V[chip8->inst.Y] <= chip8->V[chip8->inst.X]));
+					break;
+
+				case 6:
+					// 0x8XY6: Set register VX >>= 1, store LSB of VX prior to shift in VF
+					printf("Set register V%X (0x%02X) >>= 1, VF = shfited off bit (%X); Result: 0x%02X\n",
+							chip8->inst.X, chip8->V[chip8->inst.X],
+							chip8->V[chip8->inst.X] & 1,
+							chip8->V[chip8->inst.X] >> 1);
+					break; 
+				
+				case 7:
+					// 0x8XY7: Set register VX = VY - VX. VF = 0 when underflow, 1 otherwise
+					printf("Set register V%X = V%X (0x%02x) - V%X (0x%02X), VF = 1 if no borrow; Result: 0x%02X, VF = %X\n",
+							chip8->inst.X, chip8->inst.Y, chip8->V[chip8->inst.Y],
+							chip8->inst.X, chip8->V[chip8->inst.X],
+							chip8->V[chip8->inst.Y] - chip8->V[chip8->inst.X],
+							(chip8->V[chip8->inst.X] <= chip8->V[chip8->inst.Y]));
+					break;
+
+				case 0xE:
+					// 0x8XY8: Set register VX <<= 1, store LSB of VX prior to shift in VF
+					printf("Set register V%X (0x%02X) <<= 1, VF = shfited off bit (%X); Result: 0x%02X\n",
+							chip8->inst.X, chip8->V[chip8->inst.X],
+							(chip8->V[chip8->inst.X] & 0x80) >> 7,
+							chip8->V[chip8->inst.X] << 1);
+					break;
+
+				default:
+					break;
+			}
+			break;
+
 		case 0x0A:
 			// 0xANNN: Set index register I to NNN
 			printf("Set I to NNN (0x%04X)\n", 
@@ -402,6 +482,69 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 		case 0x07:
 			// 0x7XNN: Set register VX += NN
 			chip8->V[chip8->inst.X] += chip8->inst.NN;
+			break;
+
+		case 0x08:
+			switch(chip8->inst.N) {
+				case 0:
+					// 0x8XY0: Set register VX = VY
+					chip8->V[chip8->inst.X] = chip8->V[chip8->inst.Y];
+					break;
+
+				case 1:
+					// 0x8XY1: Set register VX |= VY
+					chip8->V[chip8->inst.X] |= chip8->V[chip8->inst.Y];
+					break;
+
+				case 2:
+					// 0x8XY2: Set register VX &= VY
+					chip8->V[chip8->inst.X] &= chip8->V[chip8->inst.Y];
+					break;
+
+				case 3:
+					// 0x8XY3: Set register VX ^= VY
+					chip8->V[chip8->inst.X] ^= chip8->V[chip8->inst.Y];
+					break;
+				
+				case 4:
+					// 0x8XY4: Set register VX += VY set VF to 1 if carry, otherwise 0
+					if((uint16_t)(chip8->V[chip8->inst.X] + chip8->V[chip8->inst.Y]) > 255) 
+						chip8->V[0xF] = 1;
+
+					(chip8->V[chip8->inst.X] += chip8->V[chip8->inst.Y]);
+					break;
+				
+				case 5:
+					// 0x8XY5: Set register VX -= VY set VF to 1 if VX >= VY (undercarry)
+					if(chip8->V[chip8->inst.X] >= chip8->V[chip8->inst.Y])
+						chip8->V[0xF] = 1;
+
+					chip8->V[chip8->inst.X] -= chip8->V[chip8->inst.Y];
+					break;
+
+				case 6:
+					// 0x8XY6: Set register VX >>= 1, store LSB of VX prior to shift in VF
+					chip8->V[0xF] = chip8->V[chip8->inst.X] & 1;
+					chip8->V[chip8->inst.X] >>= 1; 
+					break;
+				
+				case 7:
+					// 0x8XY7: Set register VX = VY - VX. VF = 0 when underflow, 1 otherwise
+					if(chip8->V[chip8->inst.X] <= chip8->V[chip8->inst.Y])
+						chip8->V[0xF] = 1;
+
+					chip8->V[chip8->inst.X] = chip8->V[chip8->inst.Y] - chip8->V[chip8->inst.X];
+					break;
+
+				case 0xE:
+					// 0x8XY8: Set register VX <<= 1, store LSB of VX prior to shift in VF
+					chip8->V[0xF] = (chip8->V[chip8->inst.X] & 0x80) >> 7;
+					chip8->V[chip8->inst.X] <<= 1; 
+					break;
+
+				default:
+					break;
+			}
 			break;
 
 		case 0x0A:
