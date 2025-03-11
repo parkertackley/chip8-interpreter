@@ -397,10 +397,24 @@ void print_debug_info(chip8_t *chip8) {
 			}
 			break;
 
+		case 0x09:
+			// 0x9XY0: Skip next instruction if VX != VY
+
+			printf("Check if V%X (0x%02X) != V%X (0x%02X), skip next instruction if true\n",
+					chip8->inst.X, chip8->V[chip8->inst.X],
+					chip8->inst.Y, chip8->V[chip8->inst.Y]);
+			break;
+
 		case 0x0A:
 			// 0xANNN: Set index register I to NNN
 			printf("Set I to NNN (0x%04X)\n", 
 					chip8->inst.NNN);
+			break;
+
+		case 0x0B:
+			// 0xBNNN: Set PC to (jump to) address NNN + V0
+			printf("Set PC = NNN (0x%04X) + V0 (0x%02X).\n",
+			chip8->inst.NNN, chip8->V[0x0]);
 			break;
 
 		case 0x0D:
@@ -547,9 +561,20 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 			}
 			break;
 
+		case 0x09:
+			// 0x9XY0: Skip next instruction if VX != VY
+			if(chip8->V[chip8->inst.X] != chip8->V[chip8->inst.Y])
+				chip8->PC += 2;
+			break;
+
 		case 0x0A:
 			// 0xANNN: Set index register I to NNN
 			chip8->I = chip8->inst.NNN;
+			break;
+
+		case 0x0B:
+			// 0xBNNN: Set PC to (jump to) address NNN + V0
+			chip8->PC = chip8->inst.NNN + chip8->V[0x0];
 			break;
 
 		case 0x0D: {
