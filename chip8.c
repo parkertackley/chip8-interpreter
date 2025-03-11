@@ -284,6 +284,25 @@ void print_debug_info(chip8_t *chip8) {
 					chip8->PC);
 			break;
 
+		case 0x03:
+			// 0x03XNN: Skip next instruction if VX == NN
+			printf("Check if V%X (0x%02X) == NN (0x%02X), skip next instruction if true\n",
+					chip8->inst.X, chip8->V[chip8->inst.X], chip8->inst.NN);
+			break;
+
+		case 0x04:
+			// 0x4XNN: Skip next instruction if VX != NN
+			printf("Check if V%X (0x%02X) != NN (0x%02X), skip next instruction if true\n",
+					chip8->inst.X, chip8->V[chip8->inst.X], chip8->inst.NN);
+			break;
+
+		case 0x05:
+			// 0x5XY0: Skip next instruction if VX == VY
+			printf("Check if V%X (0x%02X) == V%X (0x%02X), skip next instruction if true\n",
+					chip8->inst.X, chip8->V[chip8->inst.X],
+					chip8->inst.Y, chip8->V[chip8->inst.Y]);
+			break;
+
 		case 0x06:
 			// 0x6XNN: Set register VX to NN
 			printf("Set register V%X to NN (0x%02X)\n",
@@ -355,9 +374,24 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 			break;
 
 		case 0x02:
-			// 0x02NNN: Call subroutine at NNN
+			// 0x2NNN: Call subroutine at NNN
 			*chip8->stack_pointer++ = chip8->PC;
 			chip8->PC = chip8->inst.NNN;
+			break;
+
+		case 0x03:
+			// 0x3XNN: Skip next instruction if VX == NN
+			if(chip8->V[chip8->inst.X] == chip8->inst.NN) chip8->PC += 2;
+			break;
+
+		case 0x04:
+			// 0x4XNN: Skip next instruction if VX != NN
+			if(chip8->V[chip8->inst.X] != chip8->inst.NN) chip8->PC += 2;
+			break;
+
+		case 0x05:
+			// 0x5XY0: Skip next instruction if VX == VY
+			if(chip8->V[chip8->inst.X] == chip8->V[chip8->inst.Y]) chip8->PC += 2;
 			break;
 
 		case 0x06:
