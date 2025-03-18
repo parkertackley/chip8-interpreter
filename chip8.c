@@ -520,8 +520,27 @@ void print_debug_info(chip8_t *chip8) {
 
 				case 0x29:
 					// 0xFX29: Set regist I to the location of the sprite in memory for the character [0x0-0xF] represented by a [4x5] font
-					prinft("Set I to sprite location in memory for character in V%X (0x%02X). Result * 5 = \n",
+					printf("Set I to sprite location in memory for character in V%X (0x%02X). Result * 5 = \n",
 							chip8->inst.X, chip8->V[chip8->inst.X] * 5);
+					break;
+
+				case 0x33:
+					// 0xFX33: Stores binary-coded decimal representaion of VX in register I (with various offsets)
+					// 	I = hundreds place, I+1 = tens place, I+2 = ones place
+					printf("Store BCD representation of V%X (0x%02X) at memory from I (0x%04X).\n",
+							chip8->inst.X, chip8->V[chip8->inst.X], chip8->I);
+					break;
+
+				case 0x55:
+					// 0xFX55: Register dump V0-VX includeisve to memory offset from I
+					printf("Register dump V0-V%X (0x%02X) inclusive at memory from I (0x%04X).\n",
+							chip8->inst.X, chip8->V[chip8->inst.X], chip8->I);
+					break;
+
+				case 0x65:
+					// 0xFX65: Register load V0-VX includeisve to memory offset from I
+					printf("Register load V0-V%X (0x%02X) inclusive at memory from I (0x%04X).\n",
+							chip8->inst.X, chip8->V[chip8->inst.X], chip8->I);
 					break;
 
 				default:
@@ -776,6 +795,31 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 				case 0x29:
 					// 0xFX29: Set regist I to the location of the sprite in memory for the character [0x0-0xF] represented by a [4x5] font
 					chip8->I = chip8->V[chip8->inst.X] * 5;
+					break;
+
+				case 0x33:
+					// 0xFX33: Stores binary-coded decimal representaion of VX in register I (with various offsets)
+					// 	I = hundreds place, I+1 = tens place, I+2 = ones place
+					uint8_t bcd = chip8->V[chip8->inst.X];
+					chip8->ram[chip8->I+2] = bcd % 10;
+					bcd /= 10;
+					chip8->ram[chip8->I+1] = bcd % 10;
+					bcd /= 10;
+					chip8->ram[chip8->I] = bcd;
+					break;
+				
+				case 0x55:
+					// 0xFX55: Stores from V0-VX in memory starting at address I, increment by 1 for each value written
+					for(uint8_t i = 0; i <= chip8->inst.X; i++) {
+						chip8->ram[chip8->I + i] = chip8->V[i];
+					}
+					break;
+
+				case 0x65:
+					// 0x65: Loads from V0-VX from memory starting at address I
+					for(uint8_t i = 0; i <= chip8->inst.X; i++) {
+						chip8->V[i] = chip8->ram[chip8->I + i];
+					}
 					break;
 
 				default:
