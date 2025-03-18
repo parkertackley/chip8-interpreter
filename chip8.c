@@ -22,12 +22,13 @@ typedef struct {
 } instruction_t;
 
 typedef struct {
-	uint32_t window_width;	// SDL window width
-	uint32_t window_height;	// SDL window height
-	uint32_t fg_color;		// foreground color RGBA8888
-	uint32_t bg_color;		// background color RGBA8888
-	uint32_t scale_factor;	// amount to scale a CHIP8 pixel by
-	bool pixel_outlines;	// Draw pixel outlines yes/no
+	uint32_t window_width;		// SDL window width
+	uint32_t window_height;		// SDL window height
+	uint32_t fg_color;			// foreground color RGBA8888
+	uint32_t bg_color;			// background color RGBA8888
+	uint32_t scale_factor;		// amount to scale a CHIP8 pixel by
+	bool pixel_outlines;		// Draw pixel outlines yes/no
+	uint32_t insts_per_second;	// CHIP8 CPU "clock rate" or hx
 } config_t;
 	
 typedef enum {
@@ -86,10 +87,11 @@ bool set_config_from_args(config_t *config, const int argc, char **argv) {
 	*config = (config_t) {
 		.window_width = 64,
 		.window_height = 32,
-		.fg_color = 0xFFFFFFFF,	// white
-		.bg_color = 0x000000FF,	// yellow
-		.scale_factor = 20,		// default res  will be 1280x640
-		.pixel_outlines = true,	// draw pixel outlines by default
+		.fg_color = 0xFFFFFFFF,		// white
+		.bg_color = 0x000000FF,		// yellow
+		.scale_factor = 20,			// default res  will be 1280x640
+		.pixel_outlines = true,		// draw pixel outlines by default
+		.insts_per_second = 700,	// Number of instructions to emlate per second
 	};
 
 	// Override defaults
@@ -599,12 +601,14 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 
 		case 0x03:
 			// 0x3XNN: Skip next instruction if VX == NN
-			if(chip8->V[chip8->inst.X] == chip8->inst.NN) chip8->PC += 2;
+			if(chip8->V[chip8->inst.X] == chip8->inst.NN) 
+				chip8->PC += 2;
 			break;
 
 		case 0x04:
 			// 0x4XNN: Skip next instruction if VX != NN
-			if(chip8->V[chip8->inst.X] != chip8->inst.NN) chip8->PC += 2;
+			if(chip8->V[chip8->inst.X] != chip8->inst.NN) 
+				chip8->PC += 2;
 			break;
 
 		case 0x05:
@@ -832,6 +836,19 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 	}
 }
 
+// Update CHIP8 delay and sound timers every 60hz
+void update_timers(chip8_t *chip8) {
+	if(chip8->delay_timer > 0)
+		chip8->delay_timer--;
+
+	if(chip8->sound_timer > 0) {
+		chip8->sound_timer--;
+		// TODO: Play sound
+	} else {
+		// TODO: Stop playing sound
+	}
+}
+
 int main(int argc, char **argv) {
 	// Default usage message for args
 	if(argc < 2) {
@@ -864,13 +881,25 @@ int main(int argc, char **argv) {
 		handle_input(&chip8);
 		if(chip8.state == PAUSED) continue;
 
-		// emulate chip8 instructions
-		emulate_instruction(&chip8, config);
+		// Get time before running instructions
+		const uint64_t start_frame = SDL_GetPerformanceCounter();
 
+		// emulate chip8 instructions for this "frame" (60hz)
+		for(uint32_t i = 0; i < config.insts_per_second / 60; i++) {
+			emulate_instruction(&chip8, config);
+		}
+
+		// Get time elapsed after instructions
+		const uint64_t end_frame = SDL_GetPerformanceCounter();
+
+		const double time_elapsed = (double)((end_frame - start_frame) / 1000) / SDL_GetPerformanceFrequency();
 		// Delay for approx 60hz
-		SDL_Delay(16);
+		SDL_Delay(16.67f > time_elapsed ? 16.67f - time_elapsed : 0);
+
 		// Update window with changes
 		update_screen(sdl, config, chip8);
+		// Update delat and sound timers every 60hz
+		update_timers(&chip8);
 	}
 
 	// Final cleanup
