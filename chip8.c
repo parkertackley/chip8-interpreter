@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "SDL.h"
 
@@ -242,14 +243,55 @@ void handle_input(chip8_t *chip8) {
 						}
 						return;
 
-					default:
-						break;
+					// Map qwerty keys to chip8 keypad
+					case SDLK_1: chip8->keypad[0x1] = true; break;
+					case SDLK_2: chip8->keypad[0x2] = true; break;
+					case SDLK_3: chip8->keypad[0x3] = true; break;
+					case SDLK_4: chip8->keypad[0xC] = true; break;
+
+					case SDLK_q: chip8->keypad[0x4] = true; break;
+					case SDLK_w: chip8->keypad[0x5] = true; break;
+					case SDLK_e: chip8->keypad[0x6] = true; break;
+					case SDLK_r: chip8->keypad[0xD] = true; break;
+					
+					case SDLK_a: chip8->keypad[0x7] = true; break;
+					case SDLK_s: chip8->keypad[0x8] = true; break;
+					case SDLK_d: chip8->keypad[0x9] = true; break;
+					case SDLK_f: chip8->keypad[0xE] = true; break;
+					
+					case SDLK_z: chip8->keypad[0xA] = true; break;
+					case SDLK_x: chip8->keypad[0x0] = true; break;
+					case SDLK_c: chip8->keypad[0xB] = true; break;
+					case SDLK_v: chip8->keypad[0xF] = true; break;
+
+					default: break;
 				}
 				break;
 
 			case SDL_KEYUP:
-				break;
+				switch(event.key.keysym.sym){
+					case SDLK_1: chip8->keypad[0x1] = false; break;
+					case SDLK_2: chip8->keypad[0x2] = false; break;
+					case SDLK_3: chip8->keypad[0x3] = false; break;
+					case SDLK_4: chip8->keypad[0xC] = false; break;
+					
+					case SDLK_q: chip8->keypad[0x4] = false; break;
+					case SDLK_w: chip8->keypad[0x5] = false; break;
+					case SDLK_e: chip8->keypad[0x6] = false; break;
+					case SDLK_r: chip8->keypad[0xD] = false; break;
 
+					case SDLK_a: chip8->keypad[0x7] = false; break;
+					case SDLK_s: chip8->keypad[0x8] = false; break;
+					case SDLK_d: chip8->keypad[0x9] = false; break;
+					case SDLK_f: chip8->keypad[0xE] = false; break;
+
+					case SDLK_z: chip8->keypad[0xA] = false; break;
+					case SDLK_x: chip8->keypad[0x0] = false; break;
+					case SDLK_c: chip8->keypad[0xB] = false; break;
+					case SDLK_v: chip8->keypad[0xF] = false; break;
+
+					default: break;
+				}
 			default:
 				break;
 		}
@@ -414,7 +456,13 @@ void print_debug_info(chip8_t *chip8) {
 		case 0x0B:
 			// 0xBNNN: Set PC to (jump to) address NNN + V0
 			printf("Set PC = NNN (0x%04X) + V0 (0x%02X).\n",
-			chip8->inst.NNN, chip8->V[0x0]);
+					chip8->inst.NNN, chip8->V[0x0]);
+			break;
+
+		case 0x0C:
+			// 0xCXNN: Set VX = rand(0-255) & NN
+			printf("Set V%X = rand() %% 256 & NN (0x%02X).\n",
+					chip8->inst.X, chip8->inst.NN);
 			break;
 
 		case 0x0D:
@@ -422,6 +470,63 @@ void print_debug_info(chip8_t *chip8) {
 				chip8->inst.N, chip8->inst.X, 
 				chip8->V[chip8->inst.X], chip8->inst.Y,
 				chip8->V[chip8->inst.Y], chip8->I);
+			break;
+
+		case 0x0E:
+			if(chip8->inst.NN == 0x9E) {
+				// 0xEX9E: Skip next instruction if key in VX is pressed
+				printf("Skip next isntruction if key in V%X (0x%02X) is pressed; keypad value: %d\n",
+						chip8->inst.X, chip8->V[chip8->inst.X], chip8->keypad[chip8->V[chip8->inst.X]]);
+				
+			} else if(chip8->inst.NN == 0xA1) {
+				//0xEXA1: Skip next instruction if key in VX is not pressed
+				printf("Skip next isntruction if key in V%X (0x%02X) is not pressed; keypad value: %d\n",
+						chip8->inst.X, chip8->V[chip8->inst.X], chip8->keypad[chip8->V[chip8->inst.X]]);
+			}
+			break;
+
+		case 0x0F:
+			switch(chip8->inst.NN) {
+				case 0x0A:
+					// 0xFX0A: VX = get_key(); Wait for a key press and store in VX
+					printf("Await until a key is pressed; Store key in V%X\n.",
+							chip8->inst.X);
+					break;
+
+				case 0x1E:
+					// 0xFX1E: Add VX to I (I += VX), VF not affected
+					printf("I (0x%04X) += V%X (0x%02X); Result: (I): 0x%04X.\n",
+							chip8->I, chip8->inst.X, chip8->V[chip8->inst.X],
+							chip8->I + chip8->V[chip8->inst.X]);
+					break;
+
+				case 0x07:
+					// 0xFX07: Set VX = value of the delay timer
+					printf("Set V%X = delay timer value (0x%02X).\n",
+							chip8->inst.X, chip8->delay_timer);
+					break;
+				
+				case 0x15:
+					// 0xFX15: Set delay timer = VX
+					printf("Set delay timer value = V%X (0x%02X).\n",
+							chip8->delay_timer, chip8->inst.X);
+					break;
+
+				case 0x18:
+					// 0xFX18: Set sound timer = VX
+					printf("Set sound timer value = V%X (0x%02X).\n",
+							chip8->inst.X, chip8->V[chip8->inst.X]);
+					break;
+
+				case 0x29:
+					// 0xFX29: Set regist I to the location of the sprite in memory for the character [0x0-0xF] represented by a [4x5] font
+					prinft("Set I to sprite location in memory for character in V%X (0x%02X). Result * 5 = \n",
+							chip8->inst.X, chip8->V[chip8->inst.X] * 5);
+					break;
+
+				default:
+					break;
+			}
 			break;
 
 		default:
@@ -577,6 +682,11 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 			chip8->PC = chip8->inst.NNN + chip8->V[0x0];
 			break;
 
+		case 0x0C:
+			// 0xCXNN: Set VX = rand(0-255) & NN
+			chip8->V[chip8->inst.X] = ((rand() % 256) & chip8->inst.NN);
+			break;
+
 		case 0x0D: {
 			// 0xDXYN: Draw N height sprite at coords X,Y; Read from memory location I;
 			//	Screen pixels are XOR'd with sprite bits,
@@ -613,6 +723,66 @@ void emulate_instruction(chip8_t *chip8, const config_t config) {
 			break;
 			}	
 
+		case 0x0E:
+			if(chip8->inst.NN == 0x9E) {
+				// 0xEX9E: Skip next instruction if key in VX is pressed
+				if(chip8->keypad[chip8->V[chip8->inst.X]])
+					chip8->PC += 2;
+				
+			} else if(chip8->inst.NN == 0xA1) {
+				//0xEXA1: Skip next instruction if key in VX is not pressed
+				if(!chip8->keypad[chip8->V[chip8->inst.X]])
+					chip8->PC += 2;
+			}
+			break;
+
+		case 0x0F:
+			switch(chip8->inst.NN) {
+				case 0x0A:
+					// 0xFX0A: VX = get_key(); Wait for a key press and store in VX
+					bool any_key_pressed = false;
+					for(uint8_t i = 0; i < sizeof chip8->keypad; i++) {
+						if(chip8->keypad[i]) {
+							chip8->V[chip8->inst.X] = i;	// i = key (offset into keypad array)
+							any_key_pressed = true;
+							break;
+						}
+					} 
+
+					if(!any_key_pressed) chip8->PC -= 2;	// keep getting current opcode and running instruction if no key is pressed
+
+					break;
+
+				case 0x1E:
+					// 0xFX1E: Add VX to I (I += VX), VF not affected
+					chip8->I += chip8->V[chip8->inst.X];
+					break;
+
+				case 0x07:
+					// 0xFX07: Set VX = value of the delay timer
+					chip8->V[chip8->inst.X] = chip8->delay_timer;
+					break;
+				
+				case 0x15:
+					// 0xFX15: Set delay timer = VX
+					chip8->delay_timer = chip8->V[chip8->inst.X];
+					break;
+
+				case 0x18:
+					// 0xFX18: Set sound timer = VX
+					chip8->sound_timer = chip8->V[chip8->inst.X];
+					break;
+
+				case 0x29:
+					// 0xFX29: Set regist I to the location of the sprite in memory for the character [0x0-0xF] represented by a [4x5] font
+					chip8->I = chip8->V[chip8->inst.X] * 5;
+					break;
+
+				default:
+					break;
+			}
+			break;
+
 		default:
 			break;	// Unimplmented or invalid opcode
 	}
@@ -640,6 +810,9 @@ int main(int argc, char **argv) {
 
 	// Init screen clear to background color
 	clear_screen(sdl, config);
+
+	// Seed random number generator
+	srand(time(NULL));
 
 	// Main emulator loop
 	while(chip8.state != QUIT){
